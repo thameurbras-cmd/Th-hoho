@@ -1,0 +1,31 @@
+workflows:
+  android-apk:
+    name: ID to PDF Bridge (APK)
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      flutter: stable
+    scripts:
+      - name: Generate the Android project
+        script: |
+          # keep our own files, because flutter create may replace them
+          mkdir -p /tmp/keep
+          cp lib/main.dart /tmp/keep/main.dart
+          cp pubspec.yaml /tmp/keep/pubspec.yaml
+          flutter create --platforms=android --project-name id_to_pdf_bridge --org com.idbridge .
+          cp /tmp/keep/main.dart lib/main.dart
+          cp /tmp/keep/pubspec.yaml pubspec.yaml
+      - name: Add permissions and minimum SDK
+        script: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.INTERNET"/>\n    <application android:usesCleartextTraffic="true"#' $MANIFEST
+          for f in android/app/build.gradle.kts android/app/build.gradle; do
+            [ -f "$f" ] && sed -i -E 's/minSdk(Version)? *=? *flutter\.minSdkVersion/minSdk = 23/' "$f"
+          done
+          cat $MANIFEST
+      - name: Build the APK
+        script: |
+          flutter pub get
+          flutter build apk --release
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk

@@ -1,0 +1,16 @@
+name: id_to_pdf_bridge
+description: Scan a national ID card and send the data to a PC.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: ^0.11.0
+  google_mlkit_text_recognition: ^0.15.0
+
+flutter:
+  uses-material-design: true
