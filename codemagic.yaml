@@ -1,4 +1,4 @@
-workflows:
+workflows :
   android-apk:
     name: ID to PDF Bridge (APK)
     max_build_duration: 30
@@ -25,6 +25,6 @@ workflows:
       - name: Build the APK
         script: |
           flutter pub get
-          flutter build apk --release
+          flutter build apk --release --no-shrink
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
