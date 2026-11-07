@@ -1,30 +1,31 @@
-workflows :
+workflows:
   android-apk:
-    name: ID to PDF Bridge (APK)
+    name: Th-hoho Android APK
     max_build_duration: 30
+    instance_type: linux_x2
     environment:
-      flutter: stable
+      flutter: 3.35.7
+      java: 17
     scripts:
-      - name: Generate the Android project
+      - name: Generate android/ (in a temp dir, copy only android/)
         script: |
-          # keep our own files, because flutter create may replace them
-          mkdir -p /tmp/keep
-          cp lib/main.dart /tmp/keep/main.dart
-          cp pubspec.yaml /tmp/keep/pubspec.yaml
-          flutter create --platforms=android --project-name id_to_pdf_bridge --org com.idbridge .
-          cp /tmp/keep/main.dart lib/main.dart
-          cp /tmp/keep/pubspec.yaml pubspec.yaml
-      - name: Add permissions and minimum SDK
+          flutter create --platforms=android --org com.thhoho --project-name th_hoho /tmp/gen
+          rm -rf android && cp -r /tmp/gen/android ./android
+      - name: Patch manifest and gradle
+        script: python3 tool/patch_android.py
+      - name: Fetch tessdata (ara + fra)
+        script: bash tool/fetch_tessdata.sh
+      - name: flutter pub get
+        script: flutter pub get
+      - name: Parser tests
+        script: flutter test
+      - name: Build release APK
+        script: flutter build apk --release
+      - name: Verify models are inside the APK
         script: |
-          MANIFEST=android/app/src/main/AndroidManifest.xml
-          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA"/>\n    <uses-permission android:name="android.permission.INTERNET"/>\n    <application android:usesCleartextTraffic="true"#' $MANIFEST
-          for f in android/app/build.gradle.kts android/app/build.gradle; do
-            [ -f "$f" ] && sed -i -E 's/minSdk(Version)? *=? *flutter\.minSdkVersion/minSdk = 23/' "$f"
-          done
-          cat $MANIFEST
-      - name: Build the APK
-        script: |
-          flutter pub get
-          flutter build apk --release --no-shrink
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          unzip -l "$APK" | grep -E "tessdata/ara.traineddata"
+          unzip -l "$APK" | grep -E "tessdata/fra.traineddata"
+          unzip -l "$APK" | grep -E "tessdata_config.json"
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/flutter-apk/*.apk
