@@ -89,4 +89,27 @@ void main() {
     expect(miss.missing, contains('nom_ar'));
     expect(miss.toFormData().containsKey('nom_ar'), isFalse);
   });
+
+  test('mrz tolerates OCR noise (slash for 7, B for 8, garbage line)', () {
+    final m = makeMrz(dob: '900115', exp: '300207').split('\n');
+    var l2 = m[1].replaceAll('300207', '30020/');
+    l2 = l2.substring(0, l2.length - 1) + 'B';
+    final raw = '100742029185 5337 خ<<ي-+<«<<<<\n$l2\n${m[2]}\n4و';
+    final r = parseMrz(raw, now: today);
+    expect(r.birth, const Dmy(15, 1, 1990));
+    expect(r.expiry, const Dmy(7, 2, 2030));
+    expect(r.nomFr, 'TESTNAME');
+    expect(r.prenomFr, 'TESTFIRST');
+  });
+
+  test('mrz wrong digit without valid check stays null', () {
+    final m = makeMrz(dob: '900115', exp: '300207').split('\n');
+    final l2 = m[1].replaceAll('900115', '900116');
+    expect(parseMrz([m[0], l2, m[2]].join('\n'), now: today).birth, isNull);
+  });
+
+  test('stop-word surname rejected', () {
+    expect(parseFront(front.replaceAll('اللقب: بنمحمد', 'اللقب: ابن م')).nomAr, isNull);
+    expect(parseFront(front.replaceAll('اللقب: بنمحمد', 'اللقب: بن زقير')).nomAr, 'بن زقير');
+  });
 }
