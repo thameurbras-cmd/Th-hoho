@@ -1,0 +1,4 @@
+*.traineddata
+build/
+.dart_tool/
+android/
