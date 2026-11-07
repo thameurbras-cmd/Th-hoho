@@ -70,8 +70,10 @@ int? mrzCheck(String s) {
   return t % 10;
 }
 
-String _digitsFix(String s) {
-  const from = 'OQDIZSB', to = '0001258';
+const _conf = r'0-9OQDIZSBG/'; // أحرف قد تُقرأ بدل أرقام (و"/" بدل 7)
+
+String _fix(String s) {
+  const from = 'OQDIZSBG/', to = '000125867';
   final b = StringBuffer();
   for (final ch in s.split('')) {
     final i = from.indexOf(ch);
@@ -79,6 +81,11 @@ String _digitsFix(String s) {
   }
   return b.toString();
 }
+
+String _cleanMrzLine(String raw) => raw
+    .toUpperCase()
+    .replaceAll(RegExp('[«»‹›]'), '<')
+    .replaceAll(RegExp(r'[^A-Z0-9</]'), '');
 
 bool _isDigits(String s) => RegExp(r'^\d+$').hasMatch(s);
 
@@ -102,57 +109,64 @@ class Mrz {
 Mrz parseMrz(String text, {DateTime? now}) {
   final today = now ?? DateTime.now();
   final out = Mrz();
-  final lines = <String>[];
-  for (final raw in text.toUpperCase().split('\n')) {
-    final ln = raw.replaceAll(' ', '').replaceAll(RegExp(r'[^A-Z0-9<]'), '');
-    if (ln.length >= 28) {
-      final cut = ln.length > 30 ? ln.substring(0, 30) : ln;
-      lines.add(cut.padRight(30, '<'));
-    }
-  }
-  final i = lines.indexWhere((l) => l.startsWith('ID'));
-  if (i < 0 || lines.length < i + 3) return out;
-  final l1 = lines[i], l2 = lines[i + 1], l3 = lines[i + 2];
+  final lines = text
+      .split('\n')
+      .map(_cleanMrzLine)
+      .where((l) => l.length >= 15)
+      .toList();
 
-  final num = l1.substring(5, 14), c = l1[14];
-  if (_isDigits(c) && mrzCheck(num) == int.parse(c)) {
-    out.docNumber = num.replaceAll('<', '');
-  } else {
-    final fn = _digitsFix(num), fc = _digitsFix(c);
-    if (_isDigits(fn) && _isDigits(fc) && mrzCheck(fn) == int.parse(fc)) {
-      out.docNumber = fn;
+  // السطر 2: yymmdd + تحقق + جنس + yymmdd + تحقق (يُبحث عنه بالنمط)
+  final pat2 = RegExp('([$_conf]{6})([$_conf])([MF<])([$_conf]{6})([$_conf])');
+  String? l2;
+  RegExpMatch? m2;
+  for (final ln in lines) {
+    final m = pat2.firstMatch(ln);
+    if (m == null) continue;
+    l2 = ln;
+    m2 = m;
+    final bSeg = _fix(m[1]!), bChk = _fix(m[2]!);
+    if (mrzCheck(bSeg) == int.parse(bChk)) {
+      out.birth = _yymmdd(bSeg, false, today);
     }
+    final eSeg = _fix(m[4]!), eChk = _fix(m[5]!);
+    if (mrzCheck(eSeg) == int.parse(eChk)) {
+      out.expiry = _yymmdd(eSeg, true, today);
+    }
+    if (m[3] == 'M' || m[3] == 'F') out.sex = m[3];
+    break;
   }
-  for (final e in [
-    [l2.substring(0, 6), l2[6], false],
-    [l2.substring(8, 14), l2[14], true],
-  ]) {
-    final seg = _digitsFix(e[0] as String), chk = _digitsFix(e[1] as String);
-    if (_isDigits(chk) && mrzCheck(seg) == int.parse(chk)) {
-      final dt = _yymmdd(seg, e[2] as bool, today);
-      if (dt != null) {
-        if (e[2] as bool) {
-          out.expiry = dt;
-        } else {
-          out.birth = dt;
-        }
+
+  // السطر 1 (اختياري): IDDZA + رقم الوثيقة + تحقق
+  final pat1 = RegExp('IDDZA([$_conf<]{9})([$_conf])');
+  for (final ln in lines) {
+    final m = pat1.firstMatch(ln);
+    if (m == null) continue;
+    final num = _fix(m[1]!), chk = _fix(m[2]!);
+    if (_isDigits(num) && mrzCheck(num) == int.parse(chk)) out.docNumber = num;
+    if (l2 != null && m2 != null && out.birth != null && out.expiry != null) {
+      final l1n = ln.substring(m.start).padRight(30, '<').substring(0, 30);
+      final l2n = l2.substring(m2.start).padRight(30, '<').substring(0, 30);
+      final comp = _fix(l1n.substring(5, 30)) +
+          _fix(l2n.substring(0, 7)) +
+          _fix(l2n.substring(8, 15)) +
+          _fix(l2n.substring(18, 29));
+      final cc = _fix(l2n[29]);
+      if (_isDigits(cc) && mrzCheck(comp) == int.parse(cc)) {
+        out.compositeOk = true;
       }
     }
+    break;
   }
-  if (l2[7] == 'M' || l2[7] == 'F') out.sex = l2[7];
-  final comp = l1.substring(5, 30) +
-      l2.substring(0, 7) +
-      l2.substring(8, 15) +
-      l2.substring(18, 29);
-  final cc = _digitsFix(l2[29]);
-  if (_isDigits(cc) && mrzCheck(comp) == int.parse(cc)) out.compositeOk = true;
 
-  final k = l3.indexOf('<<');
-  final nom = (k < 0 ? l3 : l3.substring(0, k)).replaceAll('<', ' ').trim();
-  final pre = k < 0 ? '' : l3.substring(k + 2).replaceAll('<', ' ').trim();
-  final az = RegExp(r'^[A-Z ]+$');
-  if (az.hasMatch(nom)) out.nomFr = nom;
-  if (az.hasMatch(pre)) out.prenomFr = pre;
+  // السطر 3: NOM<<PRENOM<PRENOM
+  final pat3 = RegExp(r'([A-Z]{2,}(?:<[A-Z]{2,})*)<<([A-Z]+(?:<[A-Z]+)*)');
+  for (final ln in lines) {
+    final m = pat3.firstMatch(ln);
+    if (m == null) continue;
+    out.nomFr = m[1]!.replaceAll('<', ' ').trim();
+    out.prenomFr = m[2]!.replaceAll('<', ' ').trim();
+    break;
+  }
   return out;
 }
 
@@ -181,12 +195,17 @@ String _valueAfter(List<String> lines, int idx, String pat) {
   return val;
 }
 
+const _stop = {'ابن', 'بن', 'بنت', 'ال', 'و'};
+
 String? _cleanAr(String v) {
   final s = v
       .replaceAll(RegExp(r'[^\u0621-\u064A\s\-]'), ' ')
       .replaceAll(RegExp(r'\s+'), ' ')
       .replaceAll(RegExp(r'^[ \-]+|[ \-]+$'), '');
-  return s.replaceAll(' ', '').length >= 2 ? s : null;
+  if (s.replaceAll(' ', '').length < 2) return null;
+  // قيمة كلها كلمات ربط أو حروف مفردة = قراءة ناقصة، تُترك فارغة
+  if (s.split(' ').every((t) => _stop.contains(t) || t.length == 1)) return null;
+  return s;
 }
 
 class Front {
