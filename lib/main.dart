@@ -1,4 +1,5 @@
 // المرحلة 1: تطبيق اختبار لـ Tesseract (ara+fra) + محلّل البطاقة.
+// الهدف: إثبات أن البناء والقراءة يعملان على الهاتف. الشاشات النهائية لاحقاً.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -24,7 +25,7 @@ class ThHohoApp extends StatelessWidget {
 }
 
 class Side {
-  String? path;
+  String? path; // الصورة بعد المعالجة (اتجاه صحيح + رمادي + تباين)
   String text = '';
   bool busy = false;
 }
@@ -46,6 +47,7 @@ class _TestPageState extends State<TestPage> {
     if (im == null) throw 'تعذّر قراءة الصورة';
     im = img.bakeOrientation(im);
     if (rotate != 0) im = img.copyRotate(im, angle: rotate);
+    // تصغير الصور الكبيرة جداً لتسريع القراءة
     if (im.width > 2200) im = img.copyResize(im, width: 2200);
     im = img.grayscale(im);
     im = img.adjustColor(im, contrast: 1.25);
@@ -55,16 +57,47 @@ class _TestPageState extends State<TestPage> {
     return out;
   }
 
+  /// الثلث السفلي من الصورة (حيث الشريط الآلي) مكبَّراً عند الحاجة.
+  Future<String> _cropBottom(String srcPath) async {
+    final im = img.decodeImage(await File(srcPath).readAsBytes());
+    if (im == null) return srcPath;
+    final y = (im.height * 0.55).round();
+    var c = img.copyCrop(im, x: 0, y: y, width: im.width, height: im.height - y);
+    if (c.width < 1600) c = img.copyResize(c, width: c.width * 2);
+    final dir = await getTemporaryDirectory();
+    final out = '${dir.path}/mrz_${DateTime.now().microsecondsSinceEpoch}.png';
+    await File(out).writeAsBytes(img.encodePng(c));
+    return out;
+  }
+
   Future<void> _ocr(Side s) async {
     s.busy = true;
     error = null;
     setState(() {});
     try {
-      s.text = await FlutterTesseractOcr.extractText(
-        s.path!,
-        language: 'ara+fra',
-        args: {'psm': '6', 'preserve_interword_spaces': '1'},
-      );
+      final parts = <String>[];
+      if (identical(s, back)) {
+        // الظهر: لاتينية فقط (لا نموذج عربي يلوّث الشريط) + قائمة أحرف الشريط الآلي
+        const wl = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<';
+        final crop = await _cropBottom(s.path!);
+        for (final p in [s.path!, crop]) {
+          parts.add(await FlutterTesseractOcr.extractText(p,
+              language: 'fra',
+              args: {'psm': '6', 'tessedit_char_whitelist': wl}));
+        }
+        // تمريرة بلا قائمة لقراءة تسميتي Nom / Prénom
+        parts.add(await FlutterTesseractOcr.extractText(s.path!,
+            language: 'fra',
+            args: {'psm': '6', 'preserve_interword_spaces': '1'}));
+      } else {
+        // الوجه: تمريرتان بنمطي قراءة مختلفين
+        for (final psm in ['6', '4']) {
+          parts.add(await FlutterTesseractOcr.extractText(s.path!,
+              language: 'ara+fra',
+              args: {'psm': psm, 'preserve_interword_spaces': '1'}));
+        }
+      }
+      s.text = parts.join('\n');
     } catch (e) {
       error = 'OCR: $e';
     }
