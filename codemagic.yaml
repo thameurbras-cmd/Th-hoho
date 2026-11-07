@@ -2,7 +2,7 @@ workflows:
   android-apk:
     name: Th-hoho Android APK
     max_build_duration: 30
-    instance_type: linux
+    
     environment:
       flutter: 3.35.7
       java: 17
