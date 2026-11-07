@@ -1,16 +1,25 @@
-name: id_to_pdf_bridge
-description: Scan a national ID card and send the data to a PC.
+name: th_hoho
+description: مسح بطاقة التعريف الوطنية (ara+fra) بـ Tesseract دون إنترنت - استعمال شخصي.
 publish_to: "none"
-version: 1.0.0+1
+version: 0.1.0+1
 
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  camera: ^0.11.0
-  google_mlkit_text_recognition: ^0.15.0
+  flutter_tesseract_ocr: ^0.4.28
+  image_picker: ^1.1.2
+  image: ^4.2.0
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/tessdata_config.json
+    - assets/tessdata/
