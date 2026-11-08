@@ -163,7 +163,12 @@ Mrz parseMrz(String text, {DateTime? now}) {
   for (final ln in lines) {
     final m = pat3.firstMatch(ln);
     if (m == null) continue;
-    final pre = m[2]!.split(RegExp('<{2,}')).first.replaceAll('<', ' ').trim();
+        final toks = <String>[];
+    for (final t in m[2]!.split(RegExp('<{2,}')).first.split('<')) {
+      if (t.length < 2) break; // حرف مفرد = ضجيج، وما بعده ضجيج
+      toks.add(t);
+    }
+    final pre = toks.join(' ');
     if (pre.length >= 2) {
       out.nomFr = m[1]!.replaceAll('<', ' ').trim();
       out.prenomFr = pre;
@@ -202,7 +207,7 @@ const _stop = {'ابن', 'بن', 'بنت', 'ال', 'و'};
 
 String? _cleanAr(String v) {
   final s = v
-      .replaceAll(RegExp(r'[^\u0621-\u064A\s\-]'), ' ')
+      .replaceAll(RegExp(r'[^\u0621-\u064A\s\-]'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .replaceAll(RegExp(r'^[ \-]+|[ \-]+$'), '');
   if (s.replaceAll(' ', '').length < 2) return null;
