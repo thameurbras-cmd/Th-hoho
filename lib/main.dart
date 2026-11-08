@@ -58,10 +58,10 @@ class _TestPageState extends State<TestPage> {
   }
 
   /// الثلث السفلي من الصورة (حيث الشريط الآلي) مكبَّراً عند الحاجة.
-  Future<String> _cropBottom(String srcPath) async {
+  Future<String> _cropBottom(String srcPath, {double from = 0.55}) async {
     final im = img.decodeImage(await File(srcPath).readAsBytes());
     if (im == null) return srcPath;
-    final y = (im.height * 0.55).round();
+    final y = (im.height * from).round();
     var c = img.copyCrop(im, x: 0, y: y, width: im.width, height: im.height - y);
     if (c.width < 1600) c = img.copyResize(c, width: c.width * 2);
     final dir = await getTemporaryDirectory();
@@ -90,12 +90,17 @@ class _TestPageState extends State<TestPage> {
             language: 'fra',
             args: {'psm': '6', 'preserve_interword_spaces': '1'}));
       } else {
-        // الوجه: تمريرتان بنمطي قراءة مختلفين
+        // الوجه: تمريرتان بنمطين مختلفين + تمريرة على النصف السفلي مكبَّراً
+        // (حيث اللقب والاسم والميلاد بخط صغير)
         for (final psm in ['6', '4']) {
           parts.add(await FlutterTesseractOcr.extractText(s.path!,
               language: 'ara+fra',
               args: {'psm': psm, 'preserve_interword_spaces': '1'}));
         }
+        final low = await _cropBottom(s.path!, from: 0.45);
+        parts.add(await FlutterTesseractOcr.extractText(low,
+            language: 'ara',
+            args: {'psm': '6', 'preserve_interword_spaces': '1'}));
       }
       s.text = parts.join('\n');
     } catch (e) {
