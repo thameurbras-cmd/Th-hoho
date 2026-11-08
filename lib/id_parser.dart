@@ -158,14 +158,17 @@ Mrz parseMrz(String text, {DateTime? now}) {
     break;
   }
 
-  // السطر 3: NOM<<PRENOM<PRENOM
-  final pat3 = RegExp(r'([A-Z]{2,}(?:<[A-Z]{2,})*)<<([A-Z]+(?:<[A-Z]+)*)');
+  // السطر 3: NOM<<PRENOM<PRENOM (يُقطع الاسم الشخصي عند أول << لاحقة)
+  final pat3 = RegExp(r'([A-Z]{2,}(?:<[A-Z]{2,})*)<<([A-Z][A-Z<]*)');
   for (final ln in lines) {
     final m = pat3.firstMatch(ln);
     if (m == null) continue;
-    out.nomFr = m[1]!.replaceAll('<', ' ').trim();
-    out.prenomFr = m[2]!.replaceAll('<', ' ').trim();
-    break;
+    final pre = m[2]!.split(RegExp('<{2,}')).first.replaceAll('<', ' ').trim();
+    if (pre.length >= 2) {
+      out.nomFr = m[1]!.replaceAll('<', ' ').trim();
+      out.prenomFr = pre;
+      break;
+    }
   }
   return out;
 }
