@@ -186,7 +186,7 @@ final Map<String, String> _labels = {
   'nom_ar': _al(r'اللقب'),
   'date_naissance': _al(r'تاريخ\s*الميلاد'),
   'lieu_naissance': _al(r'مكان\s*الميلاد'),
-  'date_delivrance': _al(r'تاريخ\s*الاصدار'),
+  'date_delivrance': _al(r'تاريخ\s*الاصد'),
   'date_expiration': _al(r'تاريخ\s*الانتهاء'),
   'lieu_delivrance': _al(r'سلطة\s*الاصدار'),
   'nin_label': _al(r'رقم\s*التعريف\s*الوطني'),
