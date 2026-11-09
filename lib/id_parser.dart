@@ -163,7 +163,7 @@ Mrz parseMrz(String text, {DateTime? now}) {
   for (final ln in lines) {
     final m = pat3.firstMatch(ln);
     if (m == null) continue;
-        final toks = <String>[];
+    final toks = <String>[];
     for (final t in m[2]!.split(RegExp('<{2,}')).first.split('<')) {
       if (t.length < 2) break; // حرف مفرد = ضجيج، وما بعده ضجيج
       toks.add(t);
@@ -234,11 +234,21 @@ Front parseFront(String text) {
       .toSet();
   if (nins.length == 1) out.cni = nins.first;
 
+  final dateAny = RegExp(
+      r'\d{4}\s*[./\-]\s*\d{1,2}\s*[./\-]\s*\d{1,2}|\d{1,2}\s*[./\-]\s*\d{1,2}\s*[./\-]\s*\d{4}');
+
   Dmy? date(String key) {
     for (var i = 0; i < lines.length; i++) {
-      if (RegExp(_labels[key]!).hasMatch(lines[i])) {
-        return parseDate(_valueAfter(lines, i, _labels[key]!));
+      if (!RegExp(_labels[key]!).hasMatch(lines[i])) continue;
+      final v = _valueAfter(lines, i, _labels[key]!);
+      var dt = dateAny.allMatches(v).length <= 1 ? parseDate(v) : null; // تاريخان = غامض
+      if (dt == null && dateAny.allMatches(lines[i]).length == 1) {
+        dt = parseDate(lines[i]); // التاريخ قبل التسمية في السطر
       }
+      if (dt == null && i + 1 < lines.length && !_anyLabel.hasMatch(lines[i + 1])) {
+        dt = parseDate(lines[i + 1]);
+      }
+      if (dt != null) return dt; // سطر بلا تاريخ مقروء: جرّب التسمية في مقطع آخر
     }
     return null;
   }
